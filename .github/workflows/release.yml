@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare metadata
+        id: meta
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          COMMIT="$(git rev-parse --short HEAD)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          if [ "$(cat VERSION)" != "$VERSION" ]; then
+            echo "VERSION file does not match tag: $(cat VERSION) vs $VERSION" >&2
+            exit 1
+          fi
+          cat <<EOF_NOTES > release_notes.txt
+          Version: v$VERSION
+          Commit: $COMMIT
+
+          Usage:
+          1. Download assets from this release.
+          2. Verify checksums in checksums.txt.
+          EOF_NOTES
+
+      - name: Build release artifacts
+        run: make release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release_notes.txt
+          files: |
+            dist/serin-firmware-demo-v${{ steps.meta.outputs.version }}.bin
+            dist/manifest.json
+            dist/checksums.txt
